@@ -1,10 +1,9 @@
-FROM php:7.2-fpm
+# docker build . -f base-php-nginx.Dockerfile  -t base-php-nginx:latest
+
+FROM php:7.4-fpm
 
 
-ENV COMPOSER_VERSION=1.6.5 \
-    NGINX_VERSION=1.14.0-1~stretch \
-    NJS_VERSION=1.14.0.0.2.0-1~stretch \
-    NODE_VERSION=8.11.3
+ENV NODE_VERSION=8.11.3
 
 # this is a sample BASE image, that php_fpm projects can start FROM
 # it's got a lot in it, but it's designed to meet dev and prod needs in single image
@@ -46,22 +45,12 @@ RUN apt-get update && apt-get install --no-install-recommends --no-install-sugge
 
 # Install extensions using the helper script provided by the base image
 RUN docker-php-ext-install \
-    pdo_mysql \
-    mysqli \
     json \
     readline \
-    gd \
     intl
-
-# configure gd
-RUN docker-php-ext-configure gd \
-    --enable-gd-native-ttf \
-    --with-freetype-dir=/usr/include/freetype2 \
-    --with-jpeg-dir=/usr/include/
 
 # configure intl
 RUN docker-php-ext-configure intl
-
 
 # install nginx (copied from official nginx Dockerfile)
 RUN NGINX_GPGKEY=573BFD6B3D8FBC641079A6ABABF5BD827BD9BF62; \
@@ -80,17 +69,14 @@ RUN NGINX_GPGKEY=573BFD6B3D8FBC641079A6ABABF5BD827BD9BF62; \
 	# echo "deb-src http://nginx.org/packages/debian/ stretch nginx" >> /etc/apt/nginx.list \
 	&& apt-get update \
 	&& apt-get install --no-install-recommends --no-install-suggests -y \
-						nginx=${NGINX_VERSION} \
-						nginx-module-xslt=${NGINX_VERSION} \
-						nginx-module-geoip=${NGINX_VERSION} \
-						nginx-module-image-filter=${NGINX_VERSION} \
-						nginx-module-njs=${NJS_VERSION} \
+						nginx \
+						nginx-module-xslt \
+						nginx-module-njs \
 						gettext-base \
 	&& rm -rf /var/lib/apt/lists/*
 
-# forward nginx request and error logs to docker log collector
-RUN ln -sf /dev/stdout /var/log/nginx/access.log \
-	&& ln -sf /dev/stderr /var/log/nginx/error.log
+# forward nginx error logs to docker log collector
+RUN ln -sf /dev/stderr /var/log/nginx/error.log
 
 # install composer so we can run dump-autoload at entrypoint startup in dev
 # copied from official composer Dockerfile
@@ -98,16 +84,8 @@ ENV PATH="/composer/vendor/bin:$PATH" \
     COMPOSER_ALLOW_SUPERUSER=1 \
     COMPOSER_VENDOR_DIR=/var/www/vendor \
     COMPOSER_HOME=/composer
-RUN curl -s -f -L -o /tmp/installer.php https://raw.githubusercontent.com/composer/getcomposer.org/da290238de6d63faace0343efbdd5aa9354332c5/web/installer \
- && php -r " \
-    \$signature = '669656bab3166a7aff8a7506b8cb2d1c292f042046c5a994c43155c0be6190fa0355160742ab2e1c88d40d5be660b410'; \
-    \$hash = hash('SHA384', file_get_contents('/tmp/installer.php')); \
-    if (!hash_equals(\$signature, \$hash)) { \
-        unlink('/tmp/installer.php'); \
-        echo 'Integrity check failed, installer is either corrupt or worse.' . PHP_EOL; \
-        exit(1); \
-    }" \
- && php /tmp/installer.php --no-ansi --install-dir=/usr/bin --filename=composer --version=${COMPOSER_VERSION} \
+RUN curl -s -f -L -o /tmp/installer.php https://raw.githubusercontent.com/composer/getcomposer.org/76a7060ccb93902cd7576b67264ad91c8a2700e2/web/installer \
+ && php /tmp/installer.php --no-ansi --install-dir=/usr/bin --filename=composer \
  && rm /tmp/installer.php \
  && composer --ansi --version --no-interaction
 
